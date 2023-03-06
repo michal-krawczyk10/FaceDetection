@@ -1,15 +1,35 @@
-// The face detection does not work on all browsers and operating systems.
-// If you are getting a `Face detection service unavailable` error or similar,
-// it's possible that it won't work for you at the moment.
+"use strict";
+
+//select elements
+
+const video = document.querySelector(".webcam");
+
+const canvas = document.querySelector(".video");
+const ctx = canvas.getContext("2d"); //ctx - context
+
+const faceCanvas = document.querySelector(".face");
+const faceCtx = faceCanvas.getContext("2d");
 
 const faceDetector = new window.FaceDetector();
-const video = document.querySelector("video.webcam");
-const canvas = document.querySelector("canvas.video");
-const ctx = canvas.getContext("2d");
-const faceCanvas = document.querySelector("canvas.face");
-const faceCtx = faceCanvas.getContext("2d");
-const SCALE = 1.2;
-const SIZE = 10;
+
+//sliders:
+const options = {
+	SIZE: 10,
+	SCALE: 1.35,
+};
+const optionsInputs = document.querySelectorAll(
+	'.controls input[type="range"]'
+);
+
+function handleOption(event) {
+	const { value, name } = event.currentTarget;
+	options[name] = parseFloat(value);
+}
+
+optionsInputs.forEach((input) => input.addEventListener("input", handleOption));
+// write a function that will populate the users video
+
+// as function returns promise (due to it needs to wait for camera ), need to use async - await
 
 async function populateVideo() {
 	const stream = await navigator.mediaDevices.getUserMedia({
@@ -17,61 +37,66 @@ async function populateVideo() {
 	});
 	video.srcObject = stream;
 	await video.play();
-	canvas.width = video.videoWidth;
-	canvas.height = video.videoHeight;
-	faceCanvas.width = video.videoWidth;
-	faceCanvas.height = video.videoHeight;
 }
 
+// size the canvases to be the same size as the video
+
+canvas.width = video.videoWidth;
+canvas.height = video.videoHeight;
+faceCanvas.width = video.videoWidth;
+faceCanvas.height = video.videoHeight;
+
+// face detection
 async function detect() {
 	const faces = await faceDetector.detect(video);
-	// ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-	ctx.clearRect(0, 0, canvas.width, canvas.height);
-	// paintFace(faces);
-	faces.forEach(drawFace);
+	console.log(faces);
+	// ask the browser when the next animation frame is, and tell it to run detect for us
+	faces.forEach(drawFace); // for each face found it runs drawFace
 	faces.forEach(censor);
-	requestAnimationFrame(detect);
+	requestAnimationFrame(detect); // recursion - function run itself inside of itself
 }
 
-function censor({ boundingBox: face }) {
-	faceCtx.imageSmoothingEnabled = false;
-	faceCtx.clearRect(0, 0, faceCanvas.width, faceCanvas.height);
-	// First draw it small
-	faceCtx.drawImage(
-		video, // Where should I grab the photo from?
-		face.x, // from what x and y should I start capturing from?
-		face.y,
-		face.width, // how wide and high should I capture from?
-		face.height,
-		face.x, // now to draw it, where should I start x and y?
-		face.y,
-		SIZE, // how wide and high should it be?
-		SIZE
-	);
-
-	const width = face.width * SCALE;
-	const height = face.height * SCALE;
-
-	// then draw it back on, but scaled up
-	faceCtx.drawImage(
-		faceCanvas, // Where should I grab the photo from?
-		face.x, // from what x and y should I start capturing from?
-		face.y, // from what x and y should I start capturing from?
-		SIZE,
-		SIZE,
-		// Drawing
-		face.x - (width - face.width) / 2,
-		face.y - (height - face.height) / 2,
-		width,
-		height
-	);
-}
 function drawFace(face) {
 	const { width, height, top, left } = face.boundingBox;
+	ctx.clearRect(0, 0, canvas.width, canvas.height); // clear what is drawn
 	ctx.strokeStyle = "#ffc600";
-	ctx.lineWidth = 1;
-	ctx.strokeRect(left, top, width, height);
-	ctx.stroke();
+	ctx.lineWidth = 2;
+	ctx.strokeRect(left, top, width, height); //rect = rectangle
+}
+//pixel it:
+function censor({ boundingBox: face }) {
+	faceCtx.imageSmoothingEnabled = false; //prevent bluring pixels;
+	faceCtx.clearRect(0, 0, faceCanvas.width, faceCanvas.height);
+	//draw the small face
+	faceCtx.drawImage(
+		// 5 source arguments
+		video, // where does the source come from?
+		face.x, // where do we start the source pull from?
+		face.y,
+		face.width, //how width and height we want it to go
+		face.height,
+		// 4 draw args
+		face.x, // where should we start drawing the x and y
+		face.y,
+		options.SIZE,
+		options.SIZE
+	);
+	// draw the small face back on, but scale up
+	const width = face.width * options.SCALE;
+	const height = face.width * options.SCALE;
+
+	faceCtx.drawImage(
+		faceCanvas, // source
+		face.x, // where do we start the source pull from?
+		face.y,
+		options.SIZE, //how width and height we want it to go
+		options.SIZE,
+		// drawing args
+		face.x - (width - face.width / 2),
+		face.y - (height - face.heigth / 2),
+		face.width,
+		face.height
+	);
 }
 
 populateVideo().then(detect);
